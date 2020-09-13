@@ -1,0 +1,1 @@
+# Tingz Hello World Example (Client Controller)

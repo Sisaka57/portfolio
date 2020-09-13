@@ -1,0 +1,11 @@
+---
+appInformation:
+  name: Tingz Hello World
+  publisher: Tingz
+  version: 1.0.0
+  description: Simple example Hello World app for Tingz platform.
+  launcherIcon: icon-512x512.png
+  
+appLocationUrls:
+  scenePlayer: https://tingz-example-hello-world.netlify.com/scene-player
+  clientController: https://tingz-example-hello-world.netfliy.com/client-controller

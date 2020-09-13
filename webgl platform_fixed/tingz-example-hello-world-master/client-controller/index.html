@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Client Controller</title>
+    <style>
+      body {
+        font-family: "IBM Plex Sans", sans-serif;
+      }
+    </style>
+    <!-- 
+      
+      1. This is an example of importing the Tingz SDK using the umd module 
+      
+      📝 Note about Tingz SDK import methods:
+      -------------------------------------------------------------
+      This example uses the Tingz SDK by including the library
+      with a classic <script> tag method. For simple apps this can
+      sometimes be a great option.
+
+      However, if you are using a bundler we recommend importing 
+      tingz-sdk into your project directly. 
+      
+      For example, React or Vue developers will want to use npm 
+      and import the tingz-sdk into your project.
+
+    -->
+    <script src="https://unpkg.com/tingz-sdk@latest/dist/index.umd.js"></script>
+    <script>
+      // 2. Now we will instantiate the Tingz SDK
+
+      /*
+      
+        📝 Note about local development environment:
+        -------------------------------------------------------------
+        When you are developing Tingz apps locally please make sure
+        to first start tingz-cli simulator and pass the apiEndpoint 
+        and appOrigin options below. 
+
+        Please remember to remove the apiEndpoint and appOrigin before
+        submitting to the Tingz app store.
+      
+      */
+      const tingz = new Tingz("hello-world", {
+        apiEndpoint: "http://localhost:7778",
+        appOrigin: "http://localhost:7777",
+      });
+
+      // 3. Receive any incoming events from scene player app
+      tingz.receive((data) => {
+        console.log("Received data from scene player:", data);
+      });
+
+      // 4. Send events to scene player app when your app requires.
+      // Send whatever JSON your app requires. Just make sure your
+      // scene player app has logic to handle the events you send.
+      tingz.send({
+        action: "LOADED",
+        payload: {
+          origin: "client-controller",
+        },
+      });
+
+      const getUser = () => {
+        document.getElementById(
+          "user"
+        ).textContent = `Howdy ${tingz.user.username} (id: ${tingz.user.id}) 👋!`;
+      };
+    </script>
+  </head>
+  <body>
+    <h1>Client Controller</h1>
+    <!-- 
+      In this example below we are directly calling tingz.send() 
+      and passing JSON object directly to the scene player app 
+      when tapping the "Send Timestamp" button.
+    -->
+    <button onclick="getUser()">👤 Get User</button>
+    <button
+      onclick="tingz.send({ action: 'UPDATE', payload: {message: 'Hello World!'} })"
+    >
+      💬 Send <strong>Hello World!</strong> to Scene Player
+    </button>
+    <button onclick="tingz.send({ action: 'CLEAR' })">🗑️ Clear Scene Player</button>
+    <h3 id="user"></h3>
+  </body>
+</html>
