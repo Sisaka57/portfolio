@@ -37,6 +37,8 @@ public class DiceRoll : MonoBehaviour
      public bool Dice1_set, Dice2_set;
      private static readonly int EmissionColor = Shader.PropertyToID("_EmissionColor");
 
+    bool allowTappingAgain = true;
+
      //Attention : if you have any questions feel free to ask. best way to contact is to email us, we will answer and support you for sure. the email address mentioned in the manual.pdf
      
      private void Start()
@@ -93,13 +95,35 @@ public class DiceRoll : MonoBehaviour
              active_show_time = true; // checks if dice not rolling anymore
         
 
-         if (Input.GetMouseButtonDown(0))
+         if (Input.GetMouseButtonDown(0) )
          {
+            Debug.Log("inside here ");
+            
              var ray = _camera.ScreenPointToRay(Input.mousePosition);
-             if (Physics.Raycast(ray, out var hit) && hit.collider.CompareTag("Dice") && PlayerClass.removeDice)
-                ResetAllData();
+             if (Physics.Raycast(ray, out var hit) && hit.collider.CompareTag("Dice") && PlayerClass.removeDice && Player.PlayerClass.player_number == Player.PlayerClass.myPlayerNumber && allowTappingAgain)
+            {
+                allowTappingAgain = false;
+
+                if (PlayerPrefs.GetInt("mode") == 3)
+                {
+                    GetComponent<Photon.Pun.PhotonView>().RPC("ResetDataNetwork", Photon.Pun.RpcTarget.AllViaServer, null);
+                }
+                else {
+                    ResetAllData();
+                }
+                
+            }
+                
          }
      }
+
+    [Photon.Pun.PunRPC]
+    void ResetDataNetwork()
+    {
+        ResetAllData();
+    }
+
+
 
      public void Roll_Dice_btn() // roll dice button
      {
@@ -233,6 +257,7 @@ public class DiceRoll : MonoBehaviour
 
      public void ResetAllData()
      {
+        allowTappingAgain = true;
          Physics.gravity = new Vector3(0, -9.81f, 0);
          Dice1_rend.enabled = Dice2_rend.enabled = false;
          PlayerClass.removeDice = Dice1_set = Dice2_set = false;
@@ -246,8 +271,11 @@ public class DiceRoll : MonoBehaviour
          dice1_rb.transform.rotation = Random.rotation;
          dice2_rb.transform.rotation = Random.rotation;
          PlayerClass.player_number = PlayerClass.player_number == 1 ? 2 : 1;
-         
-         if (PlayerClass.player_number == 1)
+
+        dice1_rb.GetComponent<Photon.Pun.PhotonRigidbodyView>().enabled = true;
+        dice2_rb.GetComponent<Photon.Pun.PhotonRigidbodyView>().enabled = true;
+
+        if (PlayerClass.player_number == 1)
          {
              dice1_rb.position = P1Dice1Pos;
              dice2_rb.position = P1Dice2Pos;

@@ -110,6 +110,7 @@ public class Player : MonoBehaviour
     public Image p1_label, p2_label;
     private float speed, Degree;
 
+    bool allowTapAgain = true;
 
     //Attention : if you have any questions feel free to ask. best way to contact is to email us, we will answer and support you for sure. the email address mentioned in the manual.pdf
 
@@ -720,9 +721,113 @@ public class Player : MonoBehaviour
             Coin_index_label.color = Color.white;
 
     }
+
+    [Photon.Pun.PunRPC]
+    void DetectTapOnCoins(string Selected_OBJ_Str)
+    {
+
+
+        Selected_obj = GameObject.Find(Selected_OBJ_Str);
+        UndoAction = false;
+
+        allowTapAgain = true;
+        BoardClass.CoinDefaultColor = true; // checkers no longer gets flashing
+
+        for (int bod = 0; bod < 4; bod++)
+            Bearout_Delivery_Tower[bod] = 0; //records the index of selected tower when player moves his Checker to Bear out section
+
+        for (int sbo = 0; sbo < 3; sbo++)
+            SwitchBearOutTwr[sbo] = true; //specifies the movement of coin to Bear out section
+
+
+        for (int i = 0; i < 24; i++)
+            for (int j = 0; j < 15; j++)
+                if (BoardClass.boardArray[i, j] == Selected_obj) //finds the situation of coin in the board_array(in the board of backgammon)
+                {
+                    SelectedCoin = Selected_obj.transform;
+                    SelectedTowerNumber = i;
+                    break;
+                }
+
+        ShowIndexOfSelectedTower(); // select the highest Checker in the selected tower
+
+
+        for (int deactiveTowers = 0; deactiveTowers < 26; deactiveTowers++)
+            BoardClass.greenTowers[deactiveTowers].SetActive(false);
+
+        BearOutPossible(Who); // task of this function is to determine that player is able to bear out it's checkers.
+        BoardClass.FindLegalTowers(); // info in board scripts 
+        BoardClass.ShowLegalTowers(); // info in board scripts (different from flash legal towers functions)
+
+
+        if (PlayerPrefs.GetInt("automove") == 1 && !DisconnectAutoMove)
+            StartCoroutine(AutoMoveCoins()); //if one move remained this function will makes the last move
+
+        xcoin_point = Trf_XForm.transform;
+        Time.timeScale = 1f;
+    }
+
+    [Photon.Pun.PunRPC]
+    void DetectTapOnTower(string Selected_OBJ_Str)
+    {
+        allowTapAgain = true;
+
+
+        Selected_obj = GameObject.Find(Selected_OBJ_Str);
+        UndoAction = false;
+
+
+        BoardClass.CoinDefaultColor = true;
+
+        Tower_obj = Selected_obj;
+
+        //returns the Material of Player Checkers to Default material
+        if (player_number == 1)
+            for (int i = 0; i < 15; i++)
+                BoardClass.WhiteCoinsContainer[i].GetComponent<Renderer>().material = BoardClass.WhiteCoinDefultColor;
+        else
+            for (int i2 = 0; i2 < 15; i2++)
+                BoardClass.BlackCoinsContainer[i2].GetComponent<Renderer>().material = BoardClass.BlackCoinDefultColor;
+
+        UnTouchable_The_Coins(); // will locks all coins in the board when a coins starts to move
+
+        for (int twr = 0; twr < 24; twr++)
+            if (BoardClass.greenTowers[twr] == Tower_obj)
+            {
+                xcoin_point = SelectedCoin;
+                BoardClass.Coin_step_by_step = BoardClass.coin_auto_step = false; // it could be useless
+                DeliveryTower = twr; //The index of the tower which the Checker will be place in it
+                Tower_Number = twr; //index of selected tower
+                break;
+            }
+
+        if (Tower_obj.CompareTag("White_coin") | Tower_obj.CompareTag("Black_coin") && PlayerPrefs.GetInt("undobtn") == 1)
+            Invoke(nameof(Show_undo_btn), 1f);
+
+        Coin_index_label.text = "";
+
+        for (int gt = 0; gt < 26; gt++)
+            BoardClass.greenTowers[gt].SetActive(false); // after selecting the right tower all towers will be deactive  
+
+        Calculate_Dice_check(); // task of this function is to specify how many move the Player has
+
+        MoveCounter_167(); //Counting the remaining moves of the Checkers (167 till 0)
+
+        if (Selected_obj.CompareTag("B_win_tower") | Selected_obj.CompareTag("W_win_tower"))
+            StartCoroutine(Transfer_BearOutCoin()); // his function has the task of transfers Checkers to bear out section
+
+        if (Selected_obj.CompareTag("Tower"))
+            StartCoroutine(Transfer_Coin_To_DeliveryTower()); // this function has the task of transferring Checkers along the board 
+
+        if (even_dice) // more time need to update the board array && DeliveryTower == SelectedTowerNumber + Dice_number[4]
+            Invoke(nameof(invoke_FindLegalTowers), 2f); // after 1 sec calculate next legal tower 
+        else
+            Invoke(nameof(invoke_FindLegalTowers), 1f); // after 1 sec calculate next legal tower 
+    }
+
     private void ObjectDetector() //all process of selecting Checkers and towers 
     {
-        if (Input.GetMouseButtonDown(0) && DataManagerClass.menuIsClose)
+        if (Input.GetMouseButtonDown(0) && DataManagerClass.menuIsClose /* here by Saad*/ && Player.PlayerClass.player_number == Player.PlayerClass.myPlayerNumber/*here by Saad*/)
         {
             var ray = _camera.ScreenPointToRay(Input.mousePosition);
             if (Physics.Raycast(ray, out var hit) && hit.collider != null)
@@ -730,95 +835,121 @@ public class Player : MonoBehaviour
                 Selected_obj = hit.collider.gameObject;
                 UndoAction = false;
 
+                object[] parameters = new object[1];
+                parameters[0] = Selected_obj.name;
+
                 if (hit.collider.gameObject.CompareTag("White_coin") | hit.collider.gameObject.CompareTag("Black_coin"))
                 {
-                    BoardClass.CoinDefaultColor = true; // checkers no longer gets flashing
+                    allowTapAgain = false;
+                    if (PlayerPrefs.GetInt("mode") == 3)
+                    {
+                        
+                        GetComponent<Photon.Pun.PhotonView>().RPC("DetectTapOnCoins", Photon.Pun.RpcTarget.AllViaServer, Selected_obj.name);
+                        //DetectTapOnCoins();
+                    }
+                    else
+                    {
+                        allowTapAgain = true;
 
-                    for (int bod = 0; bod < 4; bod++)
-                        Bearout_Delivery_Tower[bod] = 0; //records the index of selected tower when player moves his Checker to Bear out section
+                        BoardClass.CoinDefaultColor = true; // checkers no longer gets flashing
 
-                    for (int sbo = 0; sbo < 3; sbo++)
-                        SwitchBearOutTwr[sbo] = true; //specifies the movement of coin to Bear out section
+                        for (int bod = 0; bod < 4; bod++)
+                            Bearout_Delivery_Tower[bod] = 0; //records the index of selected tower when player moves his Checker to Bear out section
 
-
-                    for (int i = 0; i < 24; i++)
-                        for (int j = 0; j < 15; j++)
-                            if (BoardClass.boardArray[i, j] == Selected_obj) //finds the situation of coin in the board_array(in the board of backgammon)
-                            {
-                                SelectedCoin = Selected_obj.transform;
-                                SelectedTowerNumber = i;
-                                break;
-                            }
-
-                    ShowIndexOfSelectedTower(); // select the highest Checker in the selected tower
-
-
-                    for (int deactiveTowers = 0; deactiveTowers < 26; deactiveTowers++)
-                        BoardClass.greenTowers[deactiveTowers].SetActive(false);
-
-                    BearOutPossible(Who); // task of this function is to determine that player is able to bear out it's checkers.
-                    BoardClass.FindLegalTowers(); // info in board scripts 
-                    BoardClass.ShowLegalTowers(); // info in board scripts (different from flash legal towers functions)
+                        for (int sbo = 0; sbo < 3; sbo++)
+                            SwitchBearOutTwr[sbo] = true; //specifies the movement of coin to Bear out section
 
 
-                    if (PlayerPrefs.GetInt("automove") == 1 && !DisconnectAutoMove)
-                        StartCoroutine(AutoMoveCoins()); //if one move remained this function will makes the last move
+                        for (int i = 0; i < 24; i++)
+                            for (int j = 0; j < 15; j++)
+                                if (BoardClass.boardArray[i, j] == Selected_obj) //finds the situation of coin in the board_array(in the board of backgammon)
+                                {
+                                    SelectedCoin = Selected_obj.transform;
+                                    SelectedTowerNumber = i;
+                                    break;
+                                }
 
-                    xcoin_point = Trf_XForm.transform;
-                    Time.timeScale = 1f;
+                        ShowIndexOfSelectedTower(); // select the highest Checker in the selected tower
+
+
+                        for (int deactiveTowers = 0; deactiveTowers < 26; deactiveTowers++)
+                            BoardClass.greenTowers[deactiveTowers].SetActive(false);
+
+                        BearOutPossible(Who); // task of this function is to determine that player is able to bear out it's checkers.
+                        BoardClass.FindLegalTowers(); // info in board scripts 
+                        BoardClass.ShowLegalTowers(); // info in board scripts (different from flash legal towers functions)
+
+
+                        if (PlayerPrefs.GetInt("automove") == 1 && !DisconnectAutoMove)
+                            StartCoroutine(AutoMoveCoins()); //if one move remained this function will makes the last move
+
+                        xcoin_point = Trf_XForm.transform;
+                        Time.timeScale = 1f;
+                    }
 
                 }
 
                 if (Selected_obj.CompareTag("Tower") | Selected_obj.CompareTag("W_win_tower") | Selected_obj.CompareTag("B_win_tower"))
                 {
-                    BoardClass.CoinDefaultColor = true;
-
-                    Tower_obj = Selected_obj;
-
-                    //returns the Material of Player Checkers to Default material
-                    if (player_number == 1)
-                        for (int i = 0; i < 15; i++)
-                            BoardClass.WhiteCoinsContainer[i].GetComponent<Renderer>().material = BoardClass.WhiteCoinDefultColor;
+                    allowTapAgain = false;
+                    if (PlayerPrefs.GetInt("mode")==3){
+                        GetComponent<Photon.Pun.PhotonView>().RPC("DetectTapOnTower", Photon.Pun.RpcTarget.AllViaServer, Selected_obj.name);
+                        //DetectTapOnTower();
+                    }
                     else
-                        for (int i2 = 0; i2 < 15; i2++)
-                            BoardClass.BlackCoinsContainer[i2].GetComponent<Renderer>().material = BoardClass.BlackCoinDefultColor;
+                    {
+                        allowTapAgain = true;
+                        BoardClass.CoinDefaultColor = true;
 
-                    UnTouchable_The_Coins(); // will locks all coins in the board when a coins starts to move
+                        Tower_obj = Selected_obj;
 
-                    for (int twr = 0; twr < 24; twr++)
-                        if (BoardClass.greenTowers[twr] == Tower_obj)
-                        {
-                            xcoin_point = SelectedCoin;
-                            BoardClass.Coin_step_by_step = BoardClass.coin_auto_step = false; // it could be useless
-                            DeliveryTower = twr; //The index of the tower which the Checker will be place in it
-                            Tower_Number = twr; //index of selected tower
-                            break;
-                        }
+                        //returns the Material of Player Checkers to Default material
+                        if (player_number == 1)
+                            for (int i = 0; i < 15; i++)
+                                BoardClass.WhiteCoinsContainer[i].GetComponent<Renderer>().material = BoardClass.WhiteCoinDefultColor;
+                        else
+                            for (int i2 = 0; i2 < 15; i2++)
+                                BoardClass.BlackCoinsContainer[i2].GetComponent<Renderer>().material = BoardClass.BlackCoinDefultColor;
 
-                    if (Tower_obj.CompareTag("White_coin") | Tower_obj.CompareTag("Black_coin") && PlayerPrefs.GetInt("undobtn") == 1)
-                        Invoke(nameof(Show_undo_btn), 1f);
+                        UnTouchable_The_Coins(); // will locks all coins in the board when a coins starts to move
 
-                    Coin_index_label.text = "";
+                        for (int twr = 0; twr < 24; twr++)
+                            if (BoardClass.greenTowers[twr] == Tower_obj)
+                            {
+                                xcoin_point = SelectedCoin;
+                                BoardClass.Coin_step_by_step = BoardClass.coin_auto_step = false; // it could be useless
+                                DeliveryTower = twr; //The index of the tower which the Checker will be place in it
+                                Tower_Number = twr; //index of selected tower
+                                break;
+                            }
 
-                    for (int gt = 0; gt < 26; gt++)
-                        BoardClass.greenTowers[gt].SetActive(false); // after selecting the right tower all towers will be deactive  
+                        if (Tower_obj.CompareTag("White_coin") | Tower_obj.CompareTag("Black_coin") && PlayerPrefs.GetInt("undobtn") == 1)
+                            Invoke(nameof(Show_undo_btn), 1f);
 
-                    Calculate_Dice_check(); // task of this function is to specify how many move the Player has
+                        Coin_index_label.text = "";
 
-                    MoveCounter_167(); //Counting the remaining moves of the Checkers (167 till 0)
+                        for (int gt = 0; gt < 26; gt++)
+                            BoardClass.greenTowers[gt].SetActive(false); // after selecting the right tower all towers will be deactive  
 
-                    if (Selected_obj.CompareTag("B_win_tower") | Selected_obj.CompareTag("W_win_tower"))
-                        StartCoroutine(Transfer_BearOutCoin()); // his function has the task of transfers Checkers to bear out section
+                        Calculate_Dice_check(); // task of this function is to specify how many move the Player has
 
-                    if (Selected_obj.CompareTag("Tower"))
-                        StartCoroutine(Transfer_Coin_To_DeliveryTower()); // this function has the task of transferring Checkers along the board 
+                        MoveCounter_167(); //Counting the remaining moves of the Checkers (167 till 0)
 
-                    if (even_dice) // more time need to update the board array && DeliveryTower == SelectedTowerNumber + Dice_number[4]
-                        Invoke(nameof(invoke_FindLegalTowers), 2f); // after 1 sec calculate next legal tower 
-                    else
-                        Invoke(nameof(invoke_FindLegalTowers), 1f); // after 1 sec calculate next legal tower 
+                        if (Selected_obj.CompareTag("B_win_tower") | Selected_obj.CompareTag("W_win_tower"))
+                            StartCoroutine(Transfer_BearOutCoin()); // his function has the task of transfers Checkers to bear out section
+
+                        if (Selected_obj.CompareTag("Tower"))
+                            StartCoroutine(Transfer_Coin_To_DeliveryTower()); // this function has the task of transferring Checkers along the board 
+
+                        if (even_dice) // more time need to update the board array && DeliveryTower == SelectedTowerNumber + Dice_number[4]
+                            Invoke(nameof(invoke_FindLegalTowers), 2f); // after 1 sec calculate next legal tower 
+                        else
+                            Invoke(nameof(invoke_FindLegalTowers), 1f); // after 1 sec calculate next legal tower 
+                    }
+                    
                 }
 
+                //To be implemented 
                 if (Selected_obj.CompareTag("Double_cube"))
                     OfferDouble_btn(); // if player touches the double cube the function of it will be run
 

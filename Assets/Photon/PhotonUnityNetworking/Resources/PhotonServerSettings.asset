@@ -41,6 +41,10 @@ MonoBehaviour:
   - startBackGammonScene
   - Roll_Dice_btn_Online
   - RemoveSyncingDice
+  - DetectTapOnCoins
+  - DetectTapOnTower
+  - ResetDataNetwork
+  - MouseDownOtherPlayer
   DisableAutoOpenWizard: 1
   ShowSettings: 1
   DevRegionSetOnce: 1
